@@ -30,10 +30,12 @@ Check whether the environment is headless (no display server):
 Use `AskUserQuestion` to collect configuration. **Adapt auth options based on environment:**
 
 If IS_HEADLESS=true AND not WSL → AskUserQuestion: How do you want to authenticate WhatsApp?
+
 - **Pairing code** (Recommended) - Enter a numeric code on your phone (no camera needed, requires phone number)
 - **QR code in terminal** - Displays QR code in the terminal (can be too small on some displays)
 
 Otherwise (macOS, desktop Linux, or WSL) → AskUserQuestion: How do you want to authenticate WhatsApp?
+
 - **QR code in browser** (Recommended) - Opens a browser window with a large, scannable QR code
 - **Pairing code** - Enter a numeric code on your phone (no camera needed, requires phone number)
 - **QR code in terminal** - Displays QR code in the terminal (can be too small on some displays)
@@ -70,6 +72,7 @@ git merge whatsapp/main || {
 ```
 
 This merges in:
+
 - `src/channels/whatsapp.ts` (WhatsAppChannel class with self-registration via `registerChannel`)
 - `src/channels/whatsapp.test.ts` (41 unit tests)
 - `src/whatsapp-auth.ts` (standalone WhatsApp authentication script)
@@ -183,15 +186,18 @@ mkdir -p data/env && cp .env data/env/env
 Get the bot's WhatsApp number: `node -e "const c=require('./store/auth/creds.json');console.log(c.me.id.split(':')[0].split('@')[0])"`
 
 AskUserQuestion: Is this a shared phone number (personal WhatsApp) or a dedicated number (separate device)?
+
 - **Shared number** - Your personal WhatsApp number (recommended: use self-chat or a solo group)
 - **Dedicated number** - A separate phone/SIM for the assistant
 
 AskUserQuestion: What trigger word should activate the assistant?
+
 - **@Andy** - Default trigger
 - **@Claw** - Short and easy
 - **@Claude** - Match the AI name
 
 AskUserQuestion: What should the assistant call itself?
+
 - **Andy** - Default name
 - **Claw** - Short and easy
 - **Claude** - Match the AI name
@@ -199,11 +205,13 @@ AskUserQuestion: What should the assistant call itself?
 AskUserQuestion: Where do you want to chat with the assistant?
 
 **Shared number options:**
+
 - **Self-chat** (Recommended) - Chat in your own "Message Yourself" conversation
 - **Solo group** - A group with just you and the linked device
 - **Existing group** - An existing WhatsApp group
 
 **Dedicated number options:**
+
 - **DM with bot** (Recommended) - Direct message the bot's number
 - **Solo group** - A group with just you and the bot
 - **Existing group** - An existing WhatsApp group
@@ -263,14 +271,7 @@ npm run build
 Restart the service:
 
 ```bash
-# macOS (launchd)
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw
-
-# Linux (systemd)
 systemctl --user restart nanoclaw
-
-# Linux (nohup fallback)
-bash start-nanoclaw.sh
 ```
 
 ### Test the connection
@@ -278,6 +279,7 @@ bash start-nanoclaw.sh
 Tell the user:
 
 > Send a message to your registered WhatsApp chat:
+>
 > - For self-chat / main: Any message works
 > - For groups: Use the trigger word (e.g., "@Andy hello")
 >
@@ -308,6 +310,7 @@ rm -rf store/auth/ && npx tsx src/whatsapp-auth.ts --pairing-code --phone <phone
 ```
 
 Enter the code **immediately** when it appears. Also ensure:
+
 1. Phone number includes country code without `+` (e.g., `1234567890`)
 2. Phone has internet access
 3. WhatsApp is updated to the latest version
@@ -330,10 +333,11 @@ pkill -f "node dist/index.js"
 ### Bot not responding
 
 Check:
+
 1. Auth credentials exist: `ls store/auth/creds.json`
-3. Chat is registered: `sqlite3 store/messages.db "SELECT * FROM registered_groups WHERE jid LIKE '%whatsapp%' OR jid LIKE '%@g.us' OR jid LIKE '%@s.whatsapp.net'"`
-4. Service is running: `launchctl list | grep nanoclaw` (macOS) or `systemctl --user status nanoclaw` (Linux)
-5. Logs: `tail -50 logs/nanoclaw.log`
+2. Chat is registered: `sqlite3 store/messages.db "SELECT * FROM registered_groups WHERE jid LIKE '%whatsapp%' OR jid LIKE '%@g.us' OR jid LIKE '%@s.whatsapp.net'"`
+3. Service is running: `systemctl --user status nanoclaw`
+4. Logs: `tail -50 logs/nanoclaw.log`
 
 ### Group names not showing
 
@@ -350,16 +354,10 @@ This fetches all group names from WhatsApp. Runs automatically every 24 hours.
 If running `npm run dev` while the service is active:
 
 ```bash
-# macOS:
-launchctl unload ~/Library/LaunchAgents/com.nanoclaw.plist
+systemctl --user stop nanoclaw
 npm run dev
 # When done testing:
-launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
-
-# Linux:
-# systemctl --user stop nanoclaw
-# npm run dev
-# systemctl --user start nanoclaw
+systemctl --user start nanoclaw
 ```
 
 ## Removal
@@ -369,4 +367,4 @@ To remove WhatsApp integration:
 1. Delete auth credentials: `rm -rf store/auth/`
 2. Remove WhatsApp registrations: `sqlite3 store/messages.db "DELETE FROM registered_groups WHERE jid LIKE '%@g.us' OR jid LIKE '%@s.whatsapp.net'"`
 3. Sync env: `mkdir -p data/env && cp .env data/env/env`
-4. Rebuild and restart: `npm run build && launchctl kickstart -k gui/$(id -u)/com.nanoclaw` (macOS) or `npm run build && systemctl --user restart nanoclaw` (Linux)
+4. Rebuild and restart: `npm run build && systemctl --user restart nanoclaw`

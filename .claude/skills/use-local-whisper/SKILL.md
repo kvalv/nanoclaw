@@ -38,10 +38,7 @@ whisper-cli --help >/dev/null 2>&1 && echo "WHISPER_OK" || echo "WHISPER_MISSING
 ffmpeg -version >/dev/null 2>&1 && echo "FFMPEG_OK" || echo "FFMPEG_MISSING"
 ```
 
-If missing, install via Homebrew:
-```bash
-brew install whisper-cpp ffmpeg
-```
+If missing, install via your package manager (e.g., `pacman -S whisper.cpp ffmpeg` on Arch/Manjaro, or build from source).
 
 ### Check for model file
 
@@ -50,6 +47,7 @@ ls data/models/ggml-*.bin 2>/dev/null || echo "NO_MODEL"
 ```
 
 If no model exists, download the base model (148MB, good balance of speed and accuracy):
+
 ```bash
 mkdir -p data/models
 curl -L -o data/models/ggml-base.bin "https://huggingface.co/ggerganov/whisper.cpp/resolve/main/ggml-base.bin"
@@ -92,26 +90,28 @@ npm run build
 
 ## Phase 3: Verify
 
-### Ensure launchd PATH includes Homebrew
+### Ensure PATH includes whisper-cli and ffmpeg
 
-The NanoClaw launchd service runs with a restricted PATH. `whisper-cli` and `ffmpeg` are in `/opt/homebrew/bin/` (Apple Silicon) or `/usr/local/bin/` (Intel), which may not be in the plist's PATH.
+The NanoClaw systemd service may run with a restricted PATH. Ensure `whisper-cli` and `ffmpeg` are accessible.
 
-Check the current PATH:
+Check by running:
+
 ```bash
-grep -A1 'PATH' ~/Library/LaunchAgents/com.nanoclaw.plist
+which whisper-cli ffmpeg
 ```
 
-If `/opt/homebrew/bin` is missing, add it to the `<string>` value inside the `PATH` key in the plist. Then reload:
+If the binaries are in a non-standard location, add the directory to the `Environment=PATH=...` in the systemd unit file, then reload:
+
 ```bash
-launchctl unload ~/Library/LaunchAgents/com.nanoclaw.plist
-launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
+systemctl --user daemon-reload
+systemctl --user restart nanoclaw
 ```
 
 ### Build and restart
 
 ```bash
 npm run build
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw
+systemctl --user restart nanoclaw
 ```
 
 ### Test
@@ -125,6 +125,7 @@ tail -f logs/nanoclaw.log | grep -i -E "voice|transcri|whisper"
 ```
 
 Look for:
+
 - `Transcribed voice message` — successful transcription
 - `whisper.cpp transcription failed` — check model path, ffmpeg, or PATH
 
@@ -132,21 +133,22 @@ Look for:
 
 Environment variables (optional, set in `.env`):
 
-| Variable | Default | Description |
-|----------|---------|-------------|
-| `WHISPER_BIN` | `whisper-cli` | Path to whisper.cpp binary |
-| `WHISPER_MODEL` | `data/models/ggml-base.bin` | Path to GGML model file |
+| Variable        | Default                     | Description                |
+| --------------- | --------------------------- | -------------------------- |
+| `WHISPER_BIN`   | `whisper-cli`               | Path to whisper.cpp binary |
+| `WHISPER_MODEL` | `data/models/ggml-base.bin` | Path to GGML model file    |
 
 ## Troubleshooting
 
-**"whisper.cpp transcription failed"**: Ensure both `whisper-cli` and `ffmpeg` are in PATH. The launchd service uses a restricted PATH — see Phase 3 above. Test manually:
+**"whisper.cpp transcription failed"**: Ensure both `whisper-cli` and `ffmpeg` are in PATH. The systemd service may use a restricted PATH — see Phase 3 above. Test manually:
+
 ```bash
 ffmpeg -f lavfi -i anullsrc=r=16000:cl=mono -t 1 -f wav /tmp/test.wav -y
 whisper-cli -m data/models/ggml-base.bin -f /tmp/test.wav --no-timestamps -nt
 ```
 
-**Transcription works in dev but not as service**: The launchd plist PATH likely doesn't include `/opt/homebrew/bin`. See "Ensure launchd PATH includes Homebrew" in Phase 3.
+**Transcription works in dev but not as service**: The systemd service PATH may not include the directory containing `whisper-cli`. See "Ensure PATH includes whisper-cli and ffmpeg" in Phase 3.
 
-**Slow transcription**: The base model processes ~30s of audio in <1s on M1+. If slower, check CPU usage — another process may be competing.
+**Slow transcription**: Check CPU usage — another process may be competing.
 
 **Wrong language**: whisper.cpp auto-detects language. To force a language, you can set `WHISPER_LANG` and modify `src/transcription.ts` to pass `-l $WHISPER_LANG`.

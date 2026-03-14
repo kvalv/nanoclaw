@@ -11,7 +11,6 @@ import path from 'path';
 
 import { logger } from '../src/logger.js';
 import {
-  getPlatform,
   getNodePath,
   getServiceManager,
   hasSystemd,
@@ -22,11 +21,10 @@ import { emitStatus } from './status.js';
 
 export async function run(_args: string[]): Promise<void> {
   const projectRoot = process.cwd();
-  const platform = getPlatform();
   const nodePath = getNodePath();
   const homeDir = os.homedir();
 
-  logger.info({ platform, nodePath, projectRoot }, 'Setting up service');
+  logger.info({ nodePath, projectRoot }, 'Setting up service');
 
   // Build first
   logger.info('Building TypeScript');
@@ -51,97 +49,7 @@ export async function run(_args: string[]): Promise<void> {
 
   fs.mkdirSync(path.join(projectRoot, 'logs'), { recursive: true });
 
-  if (platform === 'macos') {
-    setupLaunchd(projectRoot, nodePath, homeDir);
-  } else if (platform === 'linux') {
-    setupLinux(projectRoot, nodePath, homeDir);
-  } else {
-    emitStatus('SETUP_SERVICE', {
-      SERVICE_TYPE: 'unknown',
-      NODE_PATH: nodePath,
-      PROJECT_PATH: projectRoot,
-      STATUS: 'failed',
-      ERROR: 'unsupported_platform',
-      LOG: 'logs/setup.log',
-    });
-    process.exit(1);
-  }
-}
-
-function setupLaunchd(
-  projectRoot: string,
-  nodePath: string,
-  homeDir: string,
-): void {
-  const plistPath = path.join(
-    homeDir,
-    'Library',
-    'LaunchAgents',
-    'com.nanoclaw.plist',
-  );
-  fs.mkdirSync(path.dirname(plistPath), { recursive: true });
-
-  const plist = `<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-    <key>Label</key>
-    <string>com.nanoclaw</string>
-    <key>ProgramArguments</key>
-    <array>
-        <string>${nodePath}</string>
-        <string>${projectRoot}/dist/index.js</string>
-    </array>
-    <key>WorkingDirectory</key>
-    <string>${projectRoot}</string>
-    <key>RunAtLoad</key>
-    <true/>
-    <key>KeepAlive</key>
-    <true/>
-    <key>EnvironmentVariables</key>
-    <dict>
-        <key>PATH</key>
-        <string>/usr/local/bin:/usr/bin:/bin:${homeDir}/.local/bin</string>
-        <key>HOME</key>
-        <string>${homeDir}</string>
-    </dict>
-    <key>StandardOutPath</key>
-    <string>${projectRoot}/logs/nanoclaw.log</string>
-    <key>StandardErrorPath</key>
-    <string>${projectRoot}/logs/nanoclaw.error.log</string>
-</dict>
-</plist>`;
-
-  fs.writeFileSync(plistPath, plist);
-  logger.info({ plistPath }, 'Wrote launchd plist');
-
-  try {
-    execSync(`launchctl load ${JSON.stringify(plistPath)}`, {
-      stdio: 'ignore',
-    });
-    logger.info('launchctl load succeeded');
-  } catch {
-    logger.warn('launchctl load failed (may already be loaded)');
-  }
-
-  // Verify
-  let serviceLoaded = false;
-  try {
-    const output = execSync('launchctl list', { encoding: 'utf-8' });
-    serviceLoaded = output.includes('com.nanoclaw');
-  } catch {
-    // launchctl list failed
-  }
-
-  emitStatus('SETUP_SERVICE', {
-    SERVICE_TYPE: 'launchd',
-    NODE_PATH: nodePath,
-    PROJECT_PATH: projectRoot,
-    PLIST_PATH: plistPath,
-    SERVICE_LOADED: serviceLoaded,
-    STATUS: 'success',
-    LOG: 'logs/setup.log',
-  });
+  setupLinux(projectRoot, nodePath, homeDir);
 }
 
 function setupLinux(
@@ -335,7 +243,9 @@ function setupNohupFallback(
     'fi',
     '',
     'echo "Starting NanoClaw..."',
-    `nohup ${JSON.stringify(nodePath)} ${JSON.stringify(projectRoot + '/dist/index.js')} \\`,
+    `nohup ${JSON.stringify(nodePath)} ${JSON.stringify(
+      projectRoot + '/dist/index.js',
+    )} \\`,
     `  >> ${JSON.stringify(projectRoot + '/logs/nanoclaw.log')} \\`,
     `  2>> ${JSON.stringify(projectRoot + '/logs/nanoclaw.error.log')} &`,
     '',

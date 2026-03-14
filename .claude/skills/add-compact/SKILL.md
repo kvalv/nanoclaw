@@ -31,6 +31,7 @@ git merge upstream/skill/compact
 > **Note:** `upstream` is the remote pointing to `qwibitai/nanoclaw`. If using a different remote name, substitute accordingly.
 
 This adds:
+
 - `src/session-commands.ts` (extract and authorize session commands)
 - `src/session-commands.test.ts` (unit tests for command parsing and auth)
 - Session command interception in `src/index.ts` (both `processGroupMessages` and `startMessageLoop`)
@@ -52,8 +53,7 @@ npm run build
 ### Restart service
 
 ```bash
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw  # macOS
-# Linux: systemctl --user restart nanoclaw
+systemctl --user restart nanoclaw
 ```
 
 ## Phase 3: Verify

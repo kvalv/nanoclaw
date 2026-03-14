@@ -47,6 +47,7 @@ git merge telegram/main || {
 ```
 
 This merges in:
+
 - `src/channels/telegram.ts` (TelegramChannel class with self-registration via `registerChannel`)
 - `src/channels/telegram.test.ts` (unit tests with grammy mock)
 - `import './telegram.js'` appended to the channel barrel file `src/channels/index.ts`
@@ -115,8 +116,7 @@ Tell the user:
 
 ```bash
 npm run build
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw  # macOS
-# Linux: systemctl --user restart nanoclaw
+systemctl --user restart nanoclaw
 ```
 
 ## Phase 4: Registration
@@ -154,6 +154,7 @@ npx tsx setup/index.ts --step register -- --jid "tg:<chat-id>" --name "<chat-nam
 Tell the user:
 
 > Send a message to your registered Telegram chat:
+>
 > - For main chat: Any message works
 > - For non-main: `@Andy hello` or @mention the bot
 >
@@ -170,36 +171,35 @@ tail -f logs/nanoclaw.log
 ### Bot not responding
 
 Check:
+
 1. `TELEGRAM_BOT_TOKEN` is set in `.env` AND synced to `data/env/env`
 2. Chat is registered in SQLite (check with: `sqlite3 store/messages.db "SELECT * FROM registered_groups WHERE jid LIKE 'tg:%'"`)
 3. For non-main chats: message includes trigger pattern
-4. Service is running: `launchctl list | grep nanoclaw` (macOS) or `systemctl --user status nanoclaw` (Linux)
+4. Service is running: `systemctl --user status nanoclaw`
 
 ### Bot only responds to @mentions in groups
 
 Group Privacy is enabled (default). Fix:
+
 1. `@BotFather` > `/mybots` > select bot > **Bot Settings** > **Group Privacy** > **Turn off**
 2. Remove and re-add the bot to the group (required for the change to take effect)
 
 ### Getting chat ID
 
 If `/chatid` doesn't work:
+
 - Verify token: `curl -s "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/getMe"`
 - Check bot is started: `tail -f logs/nanoclaw.log`
 
 ## After Setup
 
 If running `npm run dev` while the service is active:
+
 ```bash
-# macOS:
-launchctl unload ~/Library/LaunchAgents/com.nanoclaw.plist
+systemctl --user stop nanoclaw
 npm run dev
 # When done testing:
-launchctl load ~/Library/LaunchAgents/com.nanoclaw.plist
-# Linux:
-# systemctl --user stop nanoclaw
-# npm run dev
-# systemctl --user start nanoclaw
+systemctl --user start nanoclaw
 ```
 
 ## Agent Swarms (Teams)
@@ -219,4 +219,4 @@ To remove Telegram integration:
 3. Remove `TELEGRAM_BOT_TOKEN` from `.env`
 4. Remove Telegram registrations from SQLite: `sqlite3 store/messages.db "DELETE FROM registered_groups WHERE jid LIKE 'tg:%'"`
 5. Uninstall: `npm uninstall grammy`
-6. Rebuild: `npm run build && launchctl kickstart -k gui/$(id -u)/com.nanoclaw` (macOS) or `npm run build && systemctl --user restart nanoclaw` (Linux)
+6. Rebuild: `npm run build && systemctl --user restart nanoclaw`

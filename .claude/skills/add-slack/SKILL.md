@@ -43,6 +43,7 @@ git merge slack/main || {
 ```
 
 This merges in:
+
 - `src/channels/slack.ts` (SlackChannel class with self-registration via `registerChannel`)
 - `src/channels/slack.test.ts` (46 unit tests)
 - `import './slack.js'` appended to the channel barrel file `src/channels/index.ts`
@@ -68,6 +69,7 @@ All tests must pass (including the new Slack tests) and build must be clean befo
 If the user doesn't have a Slack app, share [SLACK_SETUP.md](SLACK_SETUP.md) which has step-by-step instructions with screenshots guidance, troubleshooting, and a token reference table.
 
 Quick summary of what's needed:
+
 1. Create a Slack app at [api.slack.com/apps](https://api.slack.com/apps)
 2. Enable Socket Mode and generate an App-Level Token (`xapp-...`)
 3. Subscribe to bot events: `message.channels`, `message.groups`, `message.im`
@@ -99,7 +101,7 @@ The container reads environment from `data/env/env`, not `.env` directly.
 
 ```bash
 npm run build
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw
+systemctl --user restart nanoclaw
 ```
 
 ## Phase 4: Registration
@@ -139,6 +141,7 @@ npx tsx setup/index.ts --step register -- --jid "slack:<channel-id>" --name "<ch
 Tell the user:
 
 > Send a message in your registered Slack channel:
+>
 > - For main channel: Any message works
 > - For non-main: `@<assistant-name> hello` (using the configured trigger word)
 >
@@ -157,7 +160,7 @@ tail -f logs/nanoclaw.log
 1. Check `SLACK_BOT_TOKEN` and `SLACK_APP_TOKEN` are set in `.env` AND synced to `data/env/env`
 2. Check channel is registered: `sqlite3 store/messages.db "SELECT * FROM registered_groups WHERE jid LIKE 'slack:%'"`
 3. For non-main channels: message must include trigger pattern
-4. Service is running: `launchctl list | grep nanoclaw`
+4. Service is running: `systemctl --user status nanoclaw`
 
 ### Bot connected but not receiving messages
 
@@ -169,22 +172,25 @@ tail -f logs/nanoclaw.log
 ### Bot not seeing messages in channels
 
 By default, bots only see messages in channels they've been explicitly added to. Make sure to:
+
 1. Add the bot to each channel you want it to monitor
 2. Check the bot has `channels:history` and/or `groups:history` scopes
 
 ### "missing_scope" errors
 
 If the bot logs `missing_scope` errors:
+
 1. Go to **OAuth & Permissions** in your Slack app settings
 2. Add the missing scope listed in the error message
 3. **Reinstall the app** to your workspace — scope changes require reinstallation
 4. Copy the new Bot Token (it changes on reinstall) and update `.env`
 5. Sync: `mkdir -p data/env && cp .env data/env/env`
-6. Restart: `launchctl kickstart -k gui/$(id -u)/com.nanoclaw`
+6. Restart: `systemctl --user restart nanoclaw`
 
 ### Getting channel ID
 
 If the channel ID is hard to find:
+
 - In Slack desktop: right-click channel → **Copy link** → extract the `C...` ID from the URL
 - In Slack web: the URL shows `https://app.slack.com/client/TXXXXXXX/C0123456789`
 - Via API: `curl -s -H "Authorization: Bearer $SLACK_BOT_TOKEN" "https://slack.com/api/conversations.list" | jq '.channels[] | {id, name}'`
@@ -192,6 +198,7 @@ If the channel ID is hard to find:
 ## After Setup
 
 The Slack channel supports:
+
 - **Public channels** — Bot must be added to the channel
 - **Private channels** — Bot must be invited to the channel
 - **Direct messages** — Users can DM the bot directly

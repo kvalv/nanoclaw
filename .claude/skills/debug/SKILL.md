@@ -10,7 +10,7 @@ This guide covers debugging the containerized agent execution system.
 ## Architecture Overview
 
 ```
-Host (macOS)                          Container (Linux VM)
+Host (Linux)                          Container (Linux VM)
 ─────────────────────────────────────────────────────────────
 src/container-runner.ts               container/agent-runner/
     │                                      │
@@ -28,12 +28,12 @@ src/container-runner.ts               container/agent-runner/
 
 ## Log Locations
 
-| Log | Location | Content |
-|-----|----------|---------|
-| **Main app logs** | `logs/nanoclaw.log` | Host-side WhatsApp, routing, container spawning |
-| **Main app errors** | `logs/nanoclaw.error.log` | Host-side errors |
-| **Container run logs** | `groups/{folder}/logs/container-*.log` | Per-run: input, mounts, stderr, stdout |
-| **Claude sessions** | `~/.claude/projects/` | Claude Code session history |
+| Log                    | Location                               | Content                                         |
+| ---------------------- | -------------------------------------- | ----------------------------------------------- |
+| **Main app logs**      | `logs/nanoclaw.log`                    | Host-side WhatsApp, routing, container spawning |
+| **Main app errors**    | `logs/nanoclaw.error.log`              | Host-side errors                                |
+| **Container run logs** | `groups/{folder}/logs/container-*.log` | Per-run: input, mounts, stderr, stdout          |
+| **Claude sessions**    | `~/.claude/projects/`                  | Claude Code session history                     |
 
 ## Enabling Debug Logging
 
@@ -43,14 +43,12 @@ Set `LOG_LEVEL=debug` for verbose output:
 # For development
 LOG_LEVEL=debug npm run dev
 
-# For launchd service (macOS), add to plist EnvironmentVariables:
-<key>LOG_LEVEL</key>
-<string>debug</string>
-# For systemd service (Linux), add to unit [Service] section:
+# For systemd service, add to unit [Service] section:
 # Environment=LOG_LEVEL=debug
 ```
 
 Debug level shows:
+
 - Full mount configurations
 - Container command arguments
 - Real-time container stderr
@@ -64,10 +62,13 @@ Debug level shows:
 Common causes:
 
 #### Missing Authentication
+
 ```
 Invalid API key · Please run /login
 ```
+
 **Fix:** Ensure `.env` file exists with either OAuth token or API key:
+
 ```bash
 cat .env  # Should show one of:
 # CLAUDE_CODE_OAUTH_TOKEN=sk-ant-oat01-...  (subscription)
@@ -75,9 +76,11 @@ cat .env  # Should show one of:
 ```
 
 #### Root User Restriction
+
 ```
 --dangerously-skip-permissions cannot be used with root/sudo privileges
 ```
+
 **Fix:** Container must run as non-root user. Check Dockerfile has `USER node`.
 
 ### 2. Environment Variables Not Passing
@@ -87,6 +90,7 @@ cat .env  # Should show one of:
 **Workaround:** The system extracts only authentication variables (`CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`) from `.env` and mounts them for sourcing inside the container. Other env vars are not exposed.
 
 To verify env vars are reaching the container:
+
 ```bash
 echo '{}' | docker run -i \
   -v $(pwd)/data/env:/workspace/env-dir:ro \
@@ -97,8 +101,10 @@ echo '{}' | docker run -i \
 ### 3. Mount Issues
 
 **Container mount notes:**
+
 - Docker supports both `-v` and `--mount` syntax
 - Use `:ro` suffix for readonly mounts:
+
   ```bash
   # Readonly
   -v /path:/container/path:ro
@@ -108,11 +114,13 @@ echo '{}' | docker run -i \
   ```
 
 To check what's mounted inside a container:
+
 ```bash
 docker run --rm --entrypoint /bin/bash nanoclaw-agent:latest -c 'ls -la /workspace/'
 ```
 
 Expected structure:
+
 ```
 /workspace/
 ├── env-dir/env           # Environment file (CLAUDE_CODE_OAUTH_TOKEN or ANTHROPIC_API_KEY)
@@ -130,6 +138,7 @@ Expected structure:
 ### 4. Permission Issues
 
 The container runs as user `node` (uid 1000). Check ownership:
+
 ```bash
 docker run --rm --entrypoint /bin/bash nanoclaw-agent:latest -c '
   whoami
@@ -147,12 +156,14 @@ If sessions aren't being resumed (new session ID every time), or Claude Code exi
 **Root cause:** The SDK looks for sessions at `$HOME/.claude/projects/`. Inside the container, `HOME=/home/node`, so it looks at `/home/node/.claude/projects/`.
 
 **Check the mount path:**
+
 ```bash
 # In container-runner.ts, verify mount is to /home/node/.claude/, NOT /root/.claude/
 grep -A3 "Claude sessions" src/container-runner.ts
 ```
 
 **Verify sessions are accessible:**
+
 ```bash
 docker run --rm --entrypoint /bin/bash \
   -v ~/.claude:/home/node/.claude \
@@ -163,11 +174,12 @@ ls -la $HOME/.claude/projects/ 2>&1 | head -5
 ```
 
 **Fix:** Ensure `container-runner.ts` mounts to `/home/node/.claude/`:
+
 ```typescript
 mounts.push({
   hostPath: claudeDir,
-  containerPath: '/home/node/.claude',  // NOT /root/.claude
-  readonly: false
+  containerPath: '/home/node/.claude', // NOT /root/.claude
+  readonly: false,
 });
 ```
 
@@ -178,6 +190,7 @@ If an MCP server fails to start, the agent may exit. Check the container logs fo
 ## Manual Container Testing
 
 ### Test the full agent flow:
+
 ```bash
 # Set up env file
 mkdir -p data/env groups/test
@@ -193,6 +206,7 @@ echo '{"prompt":"What is 2+2?","groupFolder":"test","chatJid":"test@g.us","isMai
 ```
 
 ### Test Claude Code directly:
+
 ```bash
 docker run --rm --entrypoint /bin/bash \
   -v $(pwd)/data/env:/workspace/env-dir:ro \
@@ -203,6 +217,7 @@ docker run --rm --entrypoint /bin/bash \
 ```
 
 ### Interactive shell in container:
+
 ```bash
 docker run --rm -it --entrypoint /bin/bash nanoclaw-agent:latest
 ```
@@ -265,6 +280,7 @@ docker run --rm --entrypoint /bin/bash nanoclaw-agent:latest -c '
 Claude sessions are stored per-group in `data/sessions/{group}/.claude/` for security isolation. Each group has its own session directory, preventing cross-group access to conversation history.
 
 **Critical:** The mount path must match the container user's HOME directory:
+
 - Container user: `node`
 - Container HOME: `/home/node`
 - Mount target: `/home/node/.claude/` (NOT `/root/.claude/`)
@@ -283,6 +299,7 @@ sqlite3 store/messages.db "DELETE FROM sessions WHERE group_folder = '{groupFold
 ```
 
 To verify session resumption is working, check the logs for the same session ID across messages:
+
 ```bash
 grep "Session initialized" logs/nanoclaw.log | tail -5
 # Should show the SAME session ID for consecutive messages in the same group
@@ -310,6 +327,7 @@ cat data/ipc/{groupFolder}/current_tasks.json
 ```
 
 **IPC file types:**
+
 - `messages/*.json` - Agent writes: outgoing WhatsApp messages
 - `tasks/*.json` - Agent writes: task operations (schedule, pause, resume, cancel, refresh_groups)
 - `current_tasks.json` - Host writes: read-only snapshot of scheduled tasks
@@ -329,7 +347,7 @@ echo -e "\n2. Env file copied for container?"
 [ -f data/env/env ] && echo "OK" || echo "MISSING - will be created on first run"
 
 echo -e "\n3. Container runtime running?"
-docker info &>/dev/null && echo "OK" || echo "NOT RUNNING - start Docker Desktop (macOS) or sudo systemctl start docker (Linux)"
+docker info &>/dev/null && echo "OK" || echo "NOT RUNNING - sudo systemctl start docker"
 
 echo -e "\n4. Container image exists?"
 echo '{}' | docker run -i --entrypoint /bin/echo nanoclaw-agent:latest "OK" 2>/dev/null || echo "MISSING - run ./container/build.sh"

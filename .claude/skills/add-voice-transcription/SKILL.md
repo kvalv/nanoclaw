@@ -49,6 +49,7 @@ git merge whatsapp/skill/voice-transcription || {
 ```
 
 This merges in:
+
 - `src/transcription.ts` (voice transcription module using OpenAI Whisper)
 - Voice handling in `src/channels/whatsapp.ts` (isVoiceMessage check, transcribeAudioMessage call)
 - Transcription tests in `src/channels/whatsapp.test.ts`
@@ -104,8 +105,7 @@ The container reads environment from `data/env/env`, not `.env` directly.
 
 ```bash
 npm run build
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw  # macOS
-# Linux: systemctl --user restart nanoclaw
+systemctl --user restart nanoclaw
 ```
 
 ## Phase 4: Verify
@@ -123,6 +123,7 @@ tail -f logs/nanoclaw.log | grep -i voice
 ```
 
 Look for:
+
 - `Transcribed voice message` — successful transcription with character count
 - `OPENAI_API_KEY not set` — key missing from `.env`
 - `OpenAI transcription failed` — API error (check key validity, billing)
@@ -139,6 +140,7 @@ Look for:
 ### Voice notes show "[Voice Message - transcription failed]"
 
 Check logs for the specific error. Common causes:
+
 - Network timeout — transient, will work on next message
 - Invalid API key — regenerate at https://platform.openai.com/api-keys
 - Rate limiting — wait and retry

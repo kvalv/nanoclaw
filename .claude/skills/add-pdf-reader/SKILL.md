@@ -38,6 +38,7 @@ git merge whatsapp/skill/pdf-reader || {
 ```
 
 This merges in:
+
 - `container/skills/pdf-reader/SKILL.md` (agent-facing documentation)
 - `container/skills/pdf-reader/pdf-reader` (CLI script)
 - `poppler-utils` in `container/Dockerfile`
@@ -62,8 +63,7 @@ npx vitest run src/channels/whatsapp.test.ts
 ### Restart service
 
 ```bash
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw  # macOS
-# Linux: systemctl --user restart nanoclaw
+systemctl --user restart nanoclaw
 ```
 
 ## Phase 3: Verify
@@ -71,6 +71,7 @@ launchctl kickstart -k gui/$(id -u)/com.nanoclaw  # macOS
 ### Test PDF extraction
 
 Send a PDF file in any registered WhatsApp chat. The agent should:
+
 1. Download the PDF to `attachments/`
 2. Respond acknowledging the PDF
 3. Be able to extract text when asked
@@ -86,6 +87,7 @@ tail -f logs/nanoclaw.log | grep -i pdf
 ```
 
 Look for:
+
 - `Downloaded PDF attachment` — successful download
 - `Failed to download PDF attachment` — media download issue
 

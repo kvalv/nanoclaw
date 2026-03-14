@@ -45,6 +45,7 @@ git merge whatsapp/skill/reactions || {
 ```
 
 This adds:
+
 - `scripts/migrate-reactions.ts` (database migration for `reactions` table with composite PK and indexes)
 - `src/status-tracker.ts` (forward-only emoji state machine for message lifecycle signaling, with persistence and retry)
 - `src/status-tracker.test.ts` (unit tests for StatusTracker)
@@ -74,14 +75,8 @@ All tests must pass and build must be clean before proceeding.
 npm run build
 ```
 
-Linux:
 ```bash
 systemctl --user restart nanoclaw
-```
-
-macOS:
-```bash
-launchctl kickstart -k gui/$(id -u)/com.nanoclaw
 ```
 
 ### Test receiving reactions

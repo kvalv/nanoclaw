@@ -40,6 +40,7 @@ git merge whatsapp/skill/image-vision || {
 ```
 
 This merges in:
+
 - `src/image.ts` (image download, resize via sharp, base64 encoding)
 - `src/image.test.ts` (8 unit tests)
 - Image attachment handling in `src/channels/whatsapp.ts`
@@ -62,11 +63,13 @@ All tests must pass and build must be clean before proceeding.
 ## Phase 3: Configure
 
 1. Rebuild the container (agent-runner changes need a rebuild):
+
    ```bash
    ./container/build.sh
    ```
 
 2. Sync agent-runner source to group caches:
+
    ```bash
    for dir in data/sessions/*/agent-runner-src/; do
      cp container/agent-runner/src/*.ts "$dir"
@@ -75,7 +78,7 @@ All tests must pass and build must be clean before proceeding.
 
 3. Restart the service:
    ```bash
-   launchctl kickstart -k gui/$(id -u)/com.nanoclaw
+   systemctl --user restart nanoclaw
    ```
 
 ## Phase 4: Verify
