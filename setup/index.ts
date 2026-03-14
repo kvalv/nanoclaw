@@ -11,7 +11,6 @@ const STEPS: Record<
 > = {
   environment: () => import('./environment.js'),
   container: () => import('./container.js'),
-  groups: () => import('./groups.js'),
   register: () => import('./register.js'),
   mounts: () => import('./mounts.js'),
   service: () => import('./service.js'),
@@ -24,7 +23,9 @@ async function main(): Promise<void> {
 
   if (stepIdx === -1 || !args[stepIdx + 1]) {
     console.error(
-      `Usage: npx tsx setup/index.ts --step <${Object.keys(STEPS).join('|')}> [args...]`,
+      `Usage: npx tsx setup/index.ts --step <${Object.keys(STEPS).join(
+        '|',
+      )}> [args...]`,
     );
     process.exit(1);
   }

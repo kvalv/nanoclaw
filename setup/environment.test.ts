@@ -13,7 +13,7 @@ describe('environment detection', () => {
   it('detects platform correctly', async () => {
     const { getPlatform } = await import('./platform.js');
     const platform = getPlatform();
-    expect(['macos', 'linux', 'unknown']).toContain(platform);
+    expect(['linux', 'unknown']).toContain(platform);
   });
 });
 
@@ -118,4 +118,3 @@ describe('channel auth detection', () => {
     expect(hasAuth('/tmp/nonexistent_auth_dir_xyz')).toBe(false);
   });
 });
-

@@ -106,6 +106,23 @@ function createSchema(database: Database.Database): void {
     /* column already exists */
   }
 
+  // Add thread_ts column if it doesn't exist (migration for Slack thread support)
+  try {
+    database.exec(`ALTER TABLE messages ADD COLUMN thread_ts TEXT`);
+  } catch {
+    /* column already exists */
+  }
+
+  // Active threads table — tracks threads Kevin has replied to
+  database.exec(`
+    CREATE TABLE IF NOT EXISTS active_threads (
+      channel_id TEXT NOT NULL,
+      thread_ts TEXT NOT NULL,
+      last_reply_at TEXT NOT NULL,
+      PRIMARY KEY (channel_id, thread_ts)
+    )
+  `);
+
   // Add is_main column if it doesn't exist (migration for existing DBs)
   try {
     database.exec(
@@ -124,12 +141,6 @@ function createSchema(database: Database.Database): void {
     database.exec(`ALTER TABLE chats ADD COLUMN channel TEXT`);
     database.exec(`ALTER TABLE chats ADD COLUMN is_group INTEGER DEFAULT 0`);
     // Backfill from JID patterns
-    database.exec(
-      `UPDATE chats SET channel = 'whatsapp', is_group = 1 WHERE jid LIKE '%@g.us'`,
-    );
-    database.exec(
-      `UPDATE chats SET channel = 'whatsapp', is_group = 0 WHERE jid LIKE '%@s.whatsapp.net'`,
-    );
     database.exec(
       `UPDATE chats SET channel = 'discord', is_group = 1 WHERE jid LIKE 'dc:%'`,
     );
@@ -236,33 +247,12 @@ export function getAllChats(): ChatInfo[] {
 }
 
 /**
- * Get timestamp of last group metadata sync.
- */
-export function getLastGroupSync(): string | null {
-  // Store sync time in a special chat entry
-  const row = db
-    .prepare(`SELECT last_message_time FROM chats WHERE jid = '__group_sync__'`)
-    .get() as { last_message_time: string } | undefined;
-  return row?.last_message_time || null;
-}
-
-/**
- * Record that group metadata was synced.
- */
-export function setLastGroupSync(): void {
-  const now = new Date().toISOString();
-  db.prepare(
-    `INSERT OR REPLACE INTO chats (jid, name, last_message_time) VALUES ('__group_sync__', '__group_sync__', ?)`,
-  ).run(now);
-}
-
-/**
  * Store a message with full content.
  * Only call this for registered groups where message history is needed.
  */
 export function storeMessage(msg: NewMessage): void {
   db.prepare(
-    `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message, thread_ts) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
   ).run(
     msg.id,
     msg.chat_jid,
@@ -272,33 +262,7 @@ export function storeMessage(msg: NewMessage): void {
     msg.timestamp,
     msg.is_from_me ? 1 : 0,
     msg.is_bot_message ? 1 : 0,
-  );
-}
-
-/**
- * Store a message directly.
- */
-export function storeMessageDirect(msg: {
-  id: string;
-  chat_jid: string;
-  sender: string;
-  sender_name: string;
-  content: string;
-  timestamp: string;
-  is_from_me: boolean;
-  is_bot_message?: boolean;
-}): void {
-  db.prepare(
-    `INSERT OR REPLACE INTO messages (id, chat_jid, sender, sender_name, content, timestamp, is_from_me, is_bot_message) VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-  ).run(
-    msg.id,
-    msg.chat_jid,
-    msg.sender,
-    msg.sender_name,
-    msg.content,
-    msg.timestamp,
-    msg.is_from_me ? 1 : 0,
-    msg.is_bot_message ? 1 : 0,
+    msg.thread_ts || null,
   );
 }
 
@@ -316,7 +280,7 @@ export function getNewMessages(
   // Subquery takes the N most recent, outer query re-sorts chronologically.
   const sql = `
     SELECT * FROM (
-      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me
+      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, thread_ts
       FROM messages
       WHERE timestamp > ? AND chat_jid IN (${placeholders})
         AND is_bot_message = 0 AND content NOT LIKE ?
@@ -349,7 +313,7 @@ export function getMessagesSince(
   // Subquery takes the N most recent, outer query re-sorts chronologically.
   const sql = `
     SELECT * FROM (
-      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me
+      SELECT id, chat_jid, sender, sender_name, content, timestamp, is_from_me, thread_ts
       FROM messages
       WHERE chat_jid = ? AND timestamp > ?
         AND is_bot_message = 0 AND content NOT LIKE ?
@@ -632,6 +596,24 @@ export function getAllRegisteredGroups(): Record<string, RegisteredGroup> {
     };
   }
   return result;
+}
+
+// --- Active threads (Slack cross-channel thread participation) ---
+
+export function markThreadActive(channelId: string, threadTs: string): void {
+  db.prepare(
+    `INSERT OR REPLACE INTO active_threads (channel_id, thread_ts, last_reply_at) VALUES (?, ?, ?)`,
+  ).run(channelId, threadTs, new Date().toISOString());
+}
+
+export function isThreadActive(channelId: string, threadTs: string): boolean {
+  const cutoff = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
+  const row = db
+    .prepare(
+      `SELECT 1 FROM active_threads WHERE channel_id = ? AND thread_ts = ? AND last_reply_at > ?`,
+    )
+    .get(channelId, threadTs, cutoff);
+  return !!row;
 }
 
 // --- JSON migration ---
